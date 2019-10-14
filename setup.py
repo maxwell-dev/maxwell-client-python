@@ -18,7 +18,7 @@ setuptools.setup(
     description="The maxwell client implementation for python.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://bitbros.com/maxwell-client-python",
+    url="https://github.com/maxwell-dev/maxwell-client-python",
     packages=setuptools.find_packages(),
     classifiers=(
         "Programming Language :: Python :: 3",
