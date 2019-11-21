@@ -1,3 +1,4 @@
+import asyncio
 import pycommons.logger
 import maxwell.protocol.maxwell_protocol_pb2 as protocol_types
 from maxwell.connection import Code
@@ -20,6 +21,8 @@ class Master(object):
         self.__endpoint_index = -1
         self.__frontend_endpoint = None
         self.__backend_endpoints = {}
+        self.__open_event = asyncio.Event(loop=self.__loop)
+        self.__connection = None
         self.__connect_to_master()
 
     def close(self):
@@ -67,9 +70,10 @@ class Master(object):
         self.__connection = None
 
     def __on_connect_to_master_done(self):
-        pass
+        self.__open_event.set()
 
     def __on_connect_to_master_failed(self, _code):
+        self.__open_event.clear()
         self.__disconnect_from_master()
         self.__loop.call_later(1, self.__connect_to_master)
 
@@ -91,7 +95,7 @@ class Master(object):
         return resolve_backend_rep.endpoint
 
     async def __request(self, action):
-        await self.__connection.wait_until_open()
+        await self.__open_event.wait()
         return await self.__connection.request(action)
 
     # ===========================================

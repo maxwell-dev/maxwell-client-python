@@ -141,7 +141,7 @@ class Frontend(Listenable):
         self.__connection = None
 
     def __on_connect_to_frontend_done(self):
-        self.__loop.create_task(self.__auth_and_then())
+        self.__loop.create_task(self.__pull_and_watch())
         self.notify(Event.ON_CONNECTED)
 
     def __on_connect_to_frontend_failed(self, _code):
@@ -169,21 +169,9 @@ class Frontend(Listenable):
     # ===========================================
     # core functions
     # ===========================================
-    async def __auth_and_then(self):
-        await self.__ensure_authed()
+    async def __pull_and_watch(self):
         self.__renew_all_pull_tasks()
         await self.__rewatch_all()
-
-    async def __ensure_authed(self):
-        while True:
-            try:
-                return await self.__request(self.__build_auth_req())
-            except Exception:
-                logger.error(
-                    "Failed to auth: %s", traceback.format_exc()
-                )
-                await asyncio.sleep(1)
-                continue
 
     def __renew_all_pull_tasks(self):
         self.__subscription_mgr.to_pendings()

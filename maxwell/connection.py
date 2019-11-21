@@ -62,7 +62,7 @@ class Connection(Listenable):
         await self.__send(msg)
 
     async def request(self, msg, timeout=10):
-        ref = self.__new_ref()
+        ref = self.__next_ref()
         if msg.__class__ == protocol_types.do_req_t:
             msg.traces[0].ref = ref
         else:
@@ -261,7 +261,7 @@ class Connection(Listenable):
     # ===========================================
     # utils
     # ===========================================
-    def __new_ref(self):
+    def __next_ref(self):
         new_ref = self.__last_ref + 1
         if new_ref > 600000:
             new_ref = 1
