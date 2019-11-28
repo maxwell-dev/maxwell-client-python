@@ -243,16 +243,24 @@ class Connection(Listenable):
         self.notify((Event.ON_ERROR, code), code)
 
     def __on_msg(self, msg):
-        if msg.__class__ == protocol_types.do_req_t \
-                or msg.__class__ == protocol_types.do_rep_t:
+        msg_type = msg.__class__
+
+        if msg_type == protocol_types.do_req_t:
+            self.notify(Event.ON_MESSAGE, msg)
+            return
+
+        if msg_type == protocol_types.do_rep_t \
+                or msg_type == protocol_types.ok2_rep_t \
+                or msg_type == protocol_types.error2_rep_t:
             ref = msg.traces[0].ref
         else:
             ref = msg.ref
         event = self.__arrived_events.get(ref)
         if event == None:
-            self.notify(Event.ON_MESSAGE, msg)
+            logger.error("Failed to find event: msg: %s", msg)
             return
-        if msg.__class__ == protocol_types.error_rep_t:
+        if msg_type == protocol_types.error_rep_t \
+                or msg_type == protocol_types.error2_rep_t:
             self.__msgs[ref] = (msg.code, msg.desc)
         else:
             self.__msgs[ref] = (Code.OK, msg)
