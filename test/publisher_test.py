@@ -16,7 +16,7 @@ async def repeat_publish():
 
         try:
             await publisher.publish(
-                "topic_0",
+                "topic_3",
                 value.to_bytes(8, byteorder='little')
             )
         except Exception:
