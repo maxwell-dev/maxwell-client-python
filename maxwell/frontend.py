@@ -247,7 +247,7 @@ class Frontend(Listenable):
 
     def __on_action(self, action):
         if action.__class__ != protocol_types.do_req_t:
-            logger.error("Ignored msg: %s", action)
+            logger.error("Ignored action: %s", action)
             return
         callback = self.__watch_callbacks.get(action.type)
         if callback != None:

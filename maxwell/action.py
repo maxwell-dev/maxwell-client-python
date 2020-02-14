@@ -37,7 +37,7 @@ class Action(object):
 
     def failed(self, code, desc = ""):
         if code < 1024:
-            raise Exception(f"Code must be less than 1024, but now ${code}.")
+            raise Exception(f"Code must be >=1024, but now ${code}.")
         self.__loop.create_task(
             self.__connection.send(self.__build_error_rep(code, desc))
         )
@@ -49,7 +49,8 @@ class Action(object):
         return do_rep
 
     def __build_error_rep(self, code, desc):
-        error_rep = protocol_types.error_rep_t()
-        error_rep.code = code
-        error_rep.desc = json.dumps(desc)
-        return error_rep
+        error2_rep = protocol_types.error2_rep_t()
+        error2_rep.code = code
+        error2_rep.desc = json.dumps(desc)
+        error2_rep.traces.extend(self.__do_req.traces)
+        return error2_rep
