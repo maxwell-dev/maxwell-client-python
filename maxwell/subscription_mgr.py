@@ -16,7 +16,7 @@ class SubscriptionMgr(object):
 
     def to_pendings(self):
         for topic, offset in self.__doings.items():
-           self.to_pending(topic, offset)
+            self.to_pending(topic, offset)
 
     def to_pending(self, topic, offset):
         self.add_subscription(topic, offset)
