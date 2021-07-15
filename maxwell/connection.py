@@ -43,6 +43,7 @@ class Connection(Listenable):
         self.__loop = loop
 
         self.__should_run = True
+        self.__repeat_reconnect_task = None
         self.__repeat_ping_task = None
         self.__repeat_receive_task = None
 
@@ -61,6 +62,9 @@ class Connection(Listenable):
 
     def close(self):
         self.__should_run = False
+        self.__delete_repeat_receive_task()
+        self.__delete_repeat_ping_task()
+        self.__delete_repeat_reconnect_task()
 
     async def send(self, msg):
         await self.__send(msg)
@@ -104,7 +108,9 @@ class Connection(Listenable):
     # tasks
     # ===========================================
     def __add_repeat_reconnect_task(self):
-        self.__loop.create_task(self.__repeat_reconnect())
+        if self.__repeat_reconnect_task is None:
+            self.__repeat_reconnect_task = \
+                self.__loop.create_task(self.__repeat_reconnect())
 
     def __add_repeat_ping_task(self):
         if self.__repeat_ping_task is None:
@@ -115,6 +121,21 @@ class Connection(Listenable):
         if self.__repeat_receive_task is None:
             self.__repeat_receive_task \
                 = self.__loop.create_task(self.__repeat_receive())
+
+    def __delete_repeat_reconnect_task(self):
+        if self.__repeat_reconnect_task is not None:
+            self.__repeat_reconnect_task.cancel()
+            self.__repeat_reconnect_task = None
+
+    def __delete_repeat_ping_task(self):
+        if self.__repeat_ping_task is not None:
+            self.__repeat_ping_task.cancel()
+            self.__repeat_ping_task = None
+
+    def __delete_repeat_receive_task(self):
+        if self.__repeat_receive_task is not None:
+            self.__repeat_receive_task.cancel()
+            self.__repeat_receive_task = None
 
     # ===========================================
     # internal coroutines
