@@ -30,7 +30,7 @@ class Frontend(Listenable):
             self.__options.get('queue_capacity')
         )
         self.__subscribe_callbacks = {}
-        self.__events = {} # {topic: not_full_event}
+        self.__events = {}  # {topic: not_full_event}
         self.__subscription_mgr = SubscriptionMgr()
 
         self.__loop.create_task(self.__connect_to_frontend())
@@ -72,10 +72,10 @@ class Frontend(Listenable):
         msgs = msg_queue.get(limit)
         if len(msgs) > 0:
             msg_queue.delete_to(msgs[-1].offset)
-            event.set() # trigger not_full_event
+            event.set()  # trigger not_full_event
             return msgs
         else:
-            event.set() # trigger not_full_event
+            event.set()  # trigger not_full_event
             return []
 
     async def do(self, action):
@@ -237,6 +237,7 @@ class Frontend(Listenable):
         while True:
             try:
                 await self.__request(self.__build_watch_req(action_type))
+                logger.info("Watched action_type: %s", action_type)
                 break
             except Exception:
                 logger.error("Failed to watch: %s", traceback.format_exc())
@@ -261,6 +262,7 @@ class Frontend(Listenable):
     async def __request(self, msg):
         if self.__connection == None:
             raise Exception("Connection isn't open!")
+        await self.__connection.wait_until_open()
         return await self.__connection.request(msg)
 
     # ===========================================
