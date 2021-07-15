@@ -81,6 +81,7 @@ class Connection(Listenable):
 
         code, msg = self.__msgs.pop(ref)
         if code != Code.OK:
+            logger.warning("Unexpected: code: %s; msg: %s", code, msg)
             raise Exception(code)
 
         return msg
