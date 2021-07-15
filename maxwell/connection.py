@@ -53,7 +53,8 @@ class Connection(Listenable):
         self.__msgs = {}  # exclude ping & pull msgs
         self.__active_time = 0
         self.__websocket = None
-        self.__add_repeat_check_task()
+        # self.__add_repeat_check_task()
+        self.__loop.create_task(self.__connect())
 
     def close(self):
         self.__should_run = False
@@ -99,8 +100,8 @@ class Connection(Listenable):
     # ===========================================
     # tasks
     # ===========================================
-    def __add_repeat_check_task(self):
-        self.__loop.create_task(self.__repeat_check())
+    # def __add_repeat_check_task(self):
+    #     self.__loop.create_task(self.__repeat_check())
 
     def __add_repeat_ping_task(self):
         self.__repeat_ping_task \
@@ -123,19 +124,19 @@ class Connection(Listenable):
     # ===========================================
     # internal coroutines
     # ===========================================
-    async def __repeat_check(self):
-        while self.__should_run:
-            await self.__check()
-            await asyncio.sleep(self.__options.get('check_interval'))
-        await self.__disconnect()
+    # async def __repeat_check(self):
+    #     while self.__should_run:
+    #         await self.__check()
+    #         await asyncio.sleep(self.__options.get('check_interval'))
+    #     await self.__disconnect()
 
-    async def __check(self):
-        try:
-            if not self.__is_alive():
-                await self.__disconnect()
-                await self.__connect()
-        except Exception:
-            logger.error("Failed to check: %s", traceback.format_exc())
+    # async def __check(self):
+    #     try:
+    #         if not self.__is_alive():
+    #             await self.__disconnect()
+    #             await self.__connect()
+    #     except Exception:
+    #         logger.error("Failed to check: %s", traceback.format_exc())
 
     async def __repeat_ping(self):
         while self.__should_run:
@@ -151,7 +152,8 @@ class Connection(Listenable):
             self.__on_connecting()
             self.__websocket = await websockets.connect(
                 uri=self.__build_url(self.__endpoint),
-                ping_interval=None
+                ping_interval=None,
+                max_size=None
             )
             self.__open_event.set()
             self.__on_connected()
@@ -162,6 +164,9 @@ class Connection(Listenable):
         except Exception:
             logger.error("Failed to connect: %s", traceback.format_exc())
             self.__on_error(Code.FAILED_TO_CONNECT)
+            if self.__should_run:
+                await asyncio.sleep(self.__options.get("reconnect_delay"))
+                await self.__connect()
 
     async def __disconnect(self):
         try:
@@ -200,13 +205,17 @@ class Connection(Listenable):
         encoded_msg = None
         try:
             encoded_msg = await self.__websocket.recv()
+        except websockets.ConnectionClosed:
+            logger.warning("Connection closed: endpoint: %s", self.__endpoint)
+            if self.__should_run:
+                await self.__disconnect()
+                await self.__connect()
+            return True
         except Exception as e:
             logger.error("Failed to recv: %s", traceback.format_exc())
             self.__on_error(Code.FAILED_TO_RECEIVE)
-            if isinstance(e, websockets.exceptions.ConnectionClosed):
-                return False
 
-        self.__activate()
+        # self.__activate()
 
         try:
             if encoded_msg:
@@ -277,15 +286,16 @@ class Connection(Listenable):
         self.__last_ref = new_ref
         return new_ref
 
-    def __is_alive(self):
-        return self.__now() - self.__active_time \
-               <= self.__options.get('max_idle_period')
+    #
+    # def __is_alive(self):
+    #     return self.__now() - self.__active_time \
+    #            <= self.__options.get('max_idle_period')
+    #
+    # def __activate(self):
+    #     self.__active_time = self.__now()
 
-    def __activate(self):
-        self.__active_time = self.__now()
-
-    def __now(self):
-        return int(time.time())
+    # def __now(self):
+    #     return int(time.time())
 
     def __build_url(self, endpoint):
         return "ws://" + endpoint

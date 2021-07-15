@@ -10,6 +10,7 @@ from maxwell.watcher import Watcher
 
 logger = pycommons.logger.get_instance(__name__)
 
+
 class Client(object):
 
     # ===========================================
@@ -64,12 +65,14 @@ class Client(object):
     # ===========================================
     def __init_options(self, options):
         options = options if options else {}
-        if options.get('check_interval') == None:
-            options['check_interval'] = 1
+        # if options.get('check_interval') == None:
+        #     options['check_interval'] = 1
+        if options.get('reconnect_delay') == None:
+            options['reconnect_delay'] = 1
         if options.get('ping_interval') == None:
             options['ping_interval'] = 10
-        if options.get('max_idle_period') == None:
-            options['max_idle_period'] = 15
+        # if options.get('max_idle_period') == None:
+        #     options['max_idle_period'] = 15
         if options.get('default_round_timeout') == None:
             options['default_round_timeout'] = 5
         if options.get('default_offset') == None:
