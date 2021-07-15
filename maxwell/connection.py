@@ -198,8 +198,7 @@ class Connection(Listenable):
 
     async def __repeat_receive(self):
         while self.__should_run:
-            if not await self.__recv():
-                return
+            await self.__recv()
 
     async def __recv(self):
         encoded_msg = None
@@ -210,7 +209,7 @@ class Connection(Listenable):
             if self.__should_run:
                 await self.__disconnect()
                 await self.__connect()
-            return True
+            return
         except Exception as e:
             logger.error("Failed to recv: %s", traceback.format_exc())
             self.__on_error(Code.FAILED_TO_RECEIVE)
@@ -225,8 +224,6 @@ class Connection(Listenable):
         except Exception:
             logger.error("Failed to decode: %s", traceback.format_exc())
             self.__on_error(Code.FAILED_TO_DECODE)
-
-        return True
 
     # ===========================================
     # listeners
