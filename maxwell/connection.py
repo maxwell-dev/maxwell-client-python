@@ -1,5 +1,4 @@
 import enum
-import time
 import asyncio
 import websockets
 import traceback
@@ -49,12 +48,16 @@ class Connection(Listenable):
 
         self.__last_ref = 0
         self.__open_event = asyncio.Event(loop=self.__loop)
+        self.__closed_event = asyncio.Event(loop=self.__loop)
         self.__arrived_events = {}
         self.__msgs = {}  # exclude ping & pull msgs
         self.__active_time = 0
         self.__websocket = None
-        # self.__add_repeat_check_task()
-        self.__loop.create_task(self.__connect())
+
+        self.__closed_event.set()
+        self.__add_repeat_reconnect_task()
+        self.__add_repeat_ping_task()
+        self.__add_repeat_receive_task()
 
     def close(self):
         self.__should_run = False
@@ -100,48 +103,39 @@ class Connection(Listenable):
     # ===========================================
     # tasks
     # ===========================================
-    # def __add_repeat_check_task(self):
-    #     self.__loop.create_task(self.__repeat_check())
+    def __add_repeat_reconnect_task(self):
+        self.__loop.create_task(self.__repeat_reconnect())
 
     def __add_repeat_ping_task(self):
-        self.__repeat_ping_task \
-            = self.__loop.create_task(self.__repeat_ping())
-
-    def __delete_repeat_ping_task(self):
-        if self.__repeat_ping_task != None:
-            self.__repeat_ping_task.cancel()
-            self.__repeat_ping_task = None
+        if self.__repeat_ping_task is None:
+            self.__repeat_ping_task \
+                = self.__loop.create_task(self.__repeat_ping())
 
     def __add_repeat_receive_task(self):
-        self.__repeat_receive_task \
-            = self.__loop.create_task(self.__repeat_receive())
-
-    def __delete_repeat_receive_task(self):
-        if self.__repeat_receive_task != None:
-            self.__repeat_receive_task.cancel()
-            self.__repeat_receive_task = None
+        if self.__repeat_receive_task is None:
+            self.__repeat_receive_task \
+                = self.__loop.create_task(self.__repeat_receive())
 
     # ===========================================
     # internal coroutines
     # ===========================================
-    # async def __repeat_check(self):
-    #     while self.__should_run:
-    #         await self.__check()
-    #         await asyncio.sleep(self.__options.get('check_interval'))
-    #     await self.__disconnect()
 
-    # async def __check(self):
-    #     try:
-    #         if not self.__is_alive():
-    #             await self.__disconnect()
-    #             await self.__connect()
-    #     except Exception:
-    #         logger.error("Failed to check: %s", traceback.format_exc())
+    async def __repeat_reconnect(self):
+        while self.__should_run:
+            await self.__closed_event.wait()
+            await self.__disconnect()
+            await self.__connect()
 
     async def __repeat_ping(self):
         while self.__should_run:
+            await self.__open_event.wait()
             await self.__ping()
             await asyncio.sleep(self.__options.get('ping_interval'))
+
+    async def __repeat_receive(self):
+        while self.__should_run:
+            await self.__open_event.wait()
+            await self.__recv()
 
     async def __ping(self):
         if self.__websocket != None:
@@ -156,11 +150,8 @@ class Connection(Listenable):
                 max_size=None
             )
             self.__open_event.set()
+            self.__closed_event.clear()
             self.__on_connected()
-            self.__delete_repeat_ping_task()
-            self.__add_repeat_ping_task()
-            self.__delete_repeat_receive_task()
-            self.__add_repeat_receive_task()
         except Exception:
             logger.error("Failed to connect: %s", traceback.format_exc())
             self.__on_error(Code.FAILED_TO_CONNECT)
@@ -170,17 +161,16 @@ class Connection(Listenable):
 
     async def __disconnect(self):
         try:
-            if self.__websocket != None:
+            if self.__websocket is not None:
                 self.__on_disconnecting()
                 await self.__websocket.close()
                 self.__on_disconnected()
-            self.__delete_repeat_ping_task()
-            self.__delete_repeat_receive_task()
         except Exception:
             logger.error("Failed to disconnect: %s", traceback.format_exc())
             self.__on_error(Code.FAILED_TO_DISCONNECT)
         finally:
             self.__open_event.clear()
+            self.__closed_event.set()
 
     async def __send(self, msg):
         encoded_msg = None
@@ -196,31 +186,22 @@ class Connection(Listenable):
             logger.error("Failed to send: %s", traceback.format_exc())
             self.__on_error(Code.FAILED_TO_SEND)
 
-    async def __repeat_receive(self):
-        while self.__should_run:
-            await self.__recv()
-
     async def __recv(self):
-        encoded_msg = None
         try:
             encoded_msg = await self.__websocket.recv()
         except websockets.ConnectionClosed:
             logger.warning("Connection closed: endpoint: %s", self.__endpoint)
-            if self.__should_run:
-                await self.__disconnect()
-                await self.__connect()
+            self.__closed_event.set()
             return
         except Exception as e:
             logger.error("Failed to recv: %s", traceback.format_exc())
             self.__on_error(Code.FAILED_TO_RECEIVE)
-
-        # self.__activate()
+            return
 
         try:
-            if encoded_msg:
-                msg = protocol.decode_msg(encoded_msg)
-                if msg.__class__ != protocol_types.ping_rep_t:
-                    self.__on_msg(msg)
+            msg = protocol.decode_msg(encoded_msg)
+            if msg.__class__ != protocol_types.ping_rep_t:
+                self.__on_msg(msg)
         except Exception:
             logger.error("Failed to decode: %s", traceback.format_exc())
             self.__on_error(Code.FAILED_TO_DECODE)
@@ -282,17 +263,6 @@ class Connection(Listenable):
             new_ref = 1
         self.__last_ref = new_ref
         return new_ref
-
-    #
-    # def __is_alive(self):
-    #     return self.__now() - self.__active_time \
-    #            <= self.__options.get('max_idle_period')
-    #
-    # def __activate(self):
-    #     self.__active_time = self.__now()
-
-    # def __now(self):
-    #     return int(time.time())
 
     def __build_url(self, endpoint):
         return "ws://" + endpoint
