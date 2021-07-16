@@ -212,6 +212,7 @@ class Connection(Listenable):
             encoded_msg = await self.__websocket.recv()
         except websockets.ConnectionClosed:
             logger.warning("Connection closed: endpoint: %s", self.__endpoint)
+            self.__open_event.clear()
             self.__closed_event.set()
             return
         except Exception as e:
