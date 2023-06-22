@@ -1,12 +1,11 @@
 import collections
 import traceback
-import pycommons.logger
+from .logger import get_instance
 
-logger = pycommons.logger.get_instance(__name__)
+logger = get_instance(__name__)
 
 
 class Listenable(object):
-
     def __init__(self):
         self.__listeners = collections.OrderedDict()
 
@@ -36,4 +35,3 @@ class Listenable(object):
                     callback()
             except Exception:
                 logger.error("Failed to notify: %s", traceback.format_exc())
-

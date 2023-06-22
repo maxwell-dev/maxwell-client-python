@@ -1,7 +1,7 @@
-from maxwell.msg_queue import MsgQueue
+from .msg_queue import MsgQueue
+
 
 class MsgQueueMgr(object):
-
     def __init__(self, queue_capacity):
         self.__queue_capacity = queue_capacity
         self.__dict = dict()

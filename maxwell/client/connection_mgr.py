@@ -1,7 +1,7 @@
-from maxwell.connection import Connection
+from .connection import Connection
+
 
 class ConnectionMgr(object):
-
     def __init__(self, options, loop):
         self.__options = options
         self.__loop = loop
@@ -11,8 +11,7 @@ class ConnectionMgr(object):
     def fetch(self, endpoint):
         connection = self.__connections.get(endpoint)
         if connection == None:
-            connection = Connection(
-                endpoint, self.__options, self.__loop)
+            connection = Connection(endpoint, self.__options, self.__loop)
             self.__connections[endpoint] = connection
 
         ref_count = self.__ref_counts.get(endpoint, 0)

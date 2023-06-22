@@ -1,22 +1,22 @@
 import asyncio
 import traceback
-import pycommons.logger
-from maxwell.client import Client
+from maxwell.client.logger import get_instance
+from maxwell.client.client import Client
 
-logger = pycommons.logger.get_instance(__name__)
+logger = get_instance(__name__)
 client = None
 
-async def do():
+
+async def request():
     loop = asyncio.get_event_loop()
     client = Client(["localhost:8081"], loop=loop)
-    doer = client.get_doer()
 
     while True:
-        logger.debug("doing.... ")
+        logger.debug("requesting.... ")
         try:
-            result = await doer.do({
-                "type": 'get_candles',
-                "value": {
+            result = await client.request(
+                "get_candles",
+                {
                     "signatures": {
                         "default": "candle",
                     },
@@ -27,15 +27,16 @@ async def do():
                         "timeframe": "1m",
                     },
                     "start_ts": 1545293880,
-                    "end_ts": 1545295020
-                }
-            })
+                    "end_ts": 1545295020,
+                },
+            )
             logger.debug("result: %s", result)
         except Exception:
             logger.error("Failed to check: %s", traceback.format_exc())
         await asyncio.sleep(5)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    loop.create_task(do())
+    loop.create_task(request())
     loop.run_forever()
