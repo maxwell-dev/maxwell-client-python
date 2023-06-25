@@ -75,8 +75,8 @@ class Client(object):
     def unsubscribe(self, topic):
         self.__frontend.unsubscribe(topic)
 
-    def recv(self, topic, limit):
-        return self.__frontend.recv(topic, limit)
+    def receive(self, topic, limit):
+        return self.__frontend.receive(topic, limit)
 
-    async def request(self, path, payload=None, headers={}):
-        return await self.__frontend.request(path, payload, headers)
+    async def request(self, path, payload=None, header={}):
+        return await self.__frontend.request(path, payload, header)

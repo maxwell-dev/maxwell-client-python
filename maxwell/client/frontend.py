@@ -56,7 +56,7 @@ class Frontend(Listenable):
         self.__subscribe_callbacks.pop(topic)
         self.__msg_queue_mgr.delete(topic)
 
-    def recv(self, topic, limit):
+    def receive(self, topic, limit):
         if not self.__subscription_mgr.has_subscribed(topic):
             raise Exception(f"Not subscribed yet: topic: {topic}")
 
@@ -71,8 +71,8 @@ class Frontend(Listenable):
             event.set()  # trigger not_full_event
             return []
 
-    async def request(self, path, payload=None, headers=None):
-        result = await self.__request(self.__build_req_req(path, payload, headers))
+    async def request(self, path, payload=None, header=None):
+        result = await self.__request(self.__build_req_req(path, payload, header))
         return json.loads(result.value)
 
     # ===========================================
@@ -213,11 +213,14 @@ class Frontend(Listenable):
         pull_req.limit = self.__options.get("get_limit")
         return pull_req
 
-    def __build_req_req(self, path, payload=None, headers={}):
+    def __build_req_req(self, path, payload=None, header={}):
+        header2 = protocol_types.header_t()
+        header2.token = header.get("token", "")
+
         req_req = protocol_types.req_req_t()
         req_req.path = path
         req_req.payload = json.dumps(payload if payload else {})
-        req_req.headers = json.dumps(headers if headers else {})
+        req_req.header = header2
         return req_req
 
     def __build_assign_frontend_req(self):
