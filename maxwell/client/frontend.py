@@ -214,13 +214,14 @@ class Frontend(Listenable):
         return pull_req
 
     def __build_req_req(self, path, payload=None, header={}):
-        header2 = protocol_types.header_t()
-        header2.token = header.get("token", "")
-
         req_req = protocol_types.req_req_t()
+
         req_req.path = path
         req_req.payload = json.dumps(payload if payload else {})
-        req_req.header = header2
+        header2 = protocol_types.header_t()
+        header2.token = header.get("token", "")
+        req_req.header.CopyFrom(header2)
+
         return req_req
 
     def __build_assign_frontend_req(self):
