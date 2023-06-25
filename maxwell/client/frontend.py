@@ -73,7 +73,7 @@ class Frontend(Listenable):
 
     async def request(self, path, payload=None, header=None):
         result = await self.__request(self.__build_req_req(path, payload, header))
-        return json.loads(result.value)
+        return json.loads(result.payload)
 
     # ===========================================
     # connection management

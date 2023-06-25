@@ -15,7 +15,7 @@ async def request():
         logger.debug("requesting.... ")
         try:
             result = await client.request(
-                "get_candles",
+                "/hello",
                 {
                     "signatures": {
                         "default": "candle",
