@@ -195,7 +195,7 @@ class Frontend(Listenable):
     async def __request(self, msg):
         if self.__connection == None:
             raise Exception("Connection isn't open!")
-        await self.__connection.wait_until_open()
+        await self.__connection.wait_open()
         return await self.__connection.request(msg)
 
     # ===========================================
