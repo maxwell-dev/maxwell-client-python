@@ -126,12 +126,12 @@ class Frontend(Listenable):
     async def __ensure_frontend_resolved(self):
         while True:
             try:
-                assign_frontend_rep = await self.__master.request(
-                    self.__build_assign_frontend_req()
+                pick_frontend_rep = await self.__master.request(
+                    self.__build_pick_frontend_req()
                 )
-                return assign_frontend_rep.endpoint
+                return pick_frontend_rep.endpoint
             except Exception:
-                logger.error("Failed to resolve frontend: %s", traceback.format_exc())
+                logger.error("Failed to pick frontend: %s", traceback.format_exc())
                 await asyncio.sleep(1)
                 continue
 
@@ -224,5 +224,5 @@ class Frontend(Listenable):
 
         return req_req
 
-    def __build_assign_frontend_req(self):
-        return protocol_types.assign_frontend_req_t()
+    def __build_pick_frontend_req(self):
+        return protocol_types.pick_frontend_req_t()

@@ -287,7 +287,7 @@ class Connection(Listenable):
         return new_ref
 
     def __resolve_url(self):
-        return "ws://" + self.__resolve_endpoint() + "/ws"
+        return "ws://" + self.__resolve_endpoint() + "/$ws"
 
     def __resolve_endpoint(self):
         self.__resolved_endpoint = (
