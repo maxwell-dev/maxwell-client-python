@@ -33,7 +33,7 @@ async def request():
             logger.debug("result: %s", result)
         except Exception:
             logger.error("Failed to check: %s", traceback.format_exc())
-        await asyncio.sleep(5)
+        await asyncio.sleep(1)
 
 
 if __name__ == "__main__":

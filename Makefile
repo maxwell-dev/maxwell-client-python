@@ -42,6 +42,12 @@ run:
 test:
 	$(pytest)
 
+publish:
+	python3 -m build && twine check dist/* && twine upload -r pypi dist/*
+
+publish-test:
+	python3 -m build && twine check dist/* && twine upload -r pypitest dist/*
+
 clean:
 	rm -rf $(venv-dir) 
 	rm -rf $(prj-dir)/build $(prj-dir)/dist ${prj-dir}/maxwell/maxwell_client.egg-info

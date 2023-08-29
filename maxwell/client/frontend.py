@@ -33,6 +33,8 @@ class Frontend(Listenable):
         self.__pull_tasks = {}
 
         self.__connection = None
+        self.__connected_event = asyncio.Event()
+        self.__is_connection_open = False
 
     def close(self):
         self.__do_disconnect_from_frontend()
@@ -42,12 +44,11 @@ class Frontend(Listenable):
             raise Exception(f"Already subscribed: topic: {topic}")
 
         self.__subscribe_callbacks[topic] = callback
-        event = asyncio.Event(loop=self.__loop)
+        event = asyncio.Event()
         event.set()
         self.__events[topic] = event
         self.__subscription_mgr.add_subscription(topic, offset)
-        if self.__connection != None and self.__connection.is_open():
-            self.__new_pull_task(topic)
+        self.__new_pull_task(topic)
 
     def unsubscribe(self, topic):
         self.__delete_pull_task(topic)
@@ -79,7 +80,7 @@ class Frontend(Listenable):
     # connection management
     # ===========================================
     async def __connect_to_frontend(self):
-        self.__do_connect_to_frontend(await self.__ensure_frontend_resolved())
+        self.__do_connect_to_frontend(await self.__ensure_frontend_picked())
 
     def __do_connect_to_frontend(self, endpoint):
         self.__connection = self.__connection_mgr.fetch(endpoint)
@@ -87,11 +88,11 @@ class Frontend(Listenable):
             Event.ON_CONNECTED, self.__on_connect_to_frontend_done
         )
         self.__connection.add_listener(
-            (Event.ON_ERROR, Code.FAILED_TO_CONNECT),
-            self.__on_connect_to_frontend_failed,
+            Event.ON_DISCONNECTED, self.__on_disconnect_from_frontend_done
         )
         self.__connection.add_listener(
-            Event.ON_DISCONNECTED, self.__on_disconnect_from_frontend_done
+            (Event.ON_ERROR, Code.FAILED_TO_CONNECT),
+            self.__on_connect_to_frontend_failed,
         )
 
     def __do_disconnect_from_frontend(self):
@@ -109,27 +110,30 @@ class Frontend(Listenable):
         self.__connection = None
 
     def __on_connect_to_frontend_done(self):
+        self.__is_connection_open = True
+        self.__connected_event.set()
         self.__renew_all_pull_tasks()
         self.notify(Event.ON_CONNECTED)
 
     def __on_connect_to_frontend_failed(self, _code):
+        self.__is_connection_open = False
+        self.__connected_event.clear()
         self.__do_disconnect_from_frontend()
         self.__loop.call_later(1, self.__reconnect_to_frontend)
-
-    def __on_disconnect_from_frontend_done(self):
-        self.__delete_all_pull_tasks()
-        self.notify(Event.ON_DISCONNECTED)
 
     def __reconnect_to_frontend(self):
         self.__loop.create_task(self.__connect_to_frontend())
 
-    async def __ensure_frontend_resolved(self):
+    def __on_disconnect_from_frontend_done(self):
+        self.__is_connection_open = False
+        self.__connected_event.clear()
+        self.__delete_all_pull_tasks()
+        self.notify(Event.ON_DISCONNECTED)
+
+    async def __ensure_frontend_picked(self):
         while True:
             try:
-                pick_frontend_rep = await self.__master.request(
-                    self.__build_pick_frontend_req()
-                )
-                return pick_frontend_rep.endpoint
+                return await self.__master.pick_frontend()
             except Exception:
                 logger.error("Failed to pick frontend: %s", traceback.format_exc())
                 await asyncio.sleep(1)
@@ -193,10 +197,12 @@ class Frontend(Listenable):
             await event.wait()
 
     async def __request(self, msg):
-        if self.__connection == None:
-            raise Exception("Connection isn't open!")
-        await self.__connection.wait_open()
-        return await self.__connection.request(msg)
+        if self.__is_connection_open:
+            return await self.__connection.request(msg)
+        else:         
+            logger.debug("Waiting the connection to be OPEN...")
+            await self.__connected_event.wait()
+            return await self.__connection.request(msg)
 
     # ===========================================
     # req builders
@@ -223,6 +229,3 @@ class Frontend(Listenable):
         req_req.header.CopyFrom(header2)
 
         return req_req
-
-    def __build_pick_frontend_req(self):
-        return protocol_types.pick_frontend_req_t()

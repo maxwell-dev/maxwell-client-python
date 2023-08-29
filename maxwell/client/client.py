@@ -23,7 +23,6 @@ class Client(object):
 
     def close(self):
         self.__connection_mgr.clear()
-        self.__master.close()
         self.__frontend.close()
 
     def get_master(self):
@@ -62,7 +61,7 @@ class Client(object):
         self.__connection_mgr = ConnectionMgr(self.__options, self.__loop)
 
     def __init_master(self):
-        self.__master = Master(self.__endpoints, self.__options, self.__loop)
+        self.__master = Master(self.__endpoints)
 
     def __init_frontend(self):
         self.__frontend = Frontend(
