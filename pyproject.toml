@@ -12,14 +12,14 @@ classifiers = [
 dependencies = [
   "websockets >= 11.0.3",
   "aiohttp == 3.8.5",
-  "maxwell-protocol == v0.6.6",
+  "maxwell-protocol == v0.7.0",
 ]
 description = "The maxwell client implementation for python."
 license = {file = "LICENSE"}
 name = "maxwell-client"
 readme = "README.md"
 requires-python = ">=3.7"
-version = "0.7.1"
+version = "0.7.2"
 
 [tool.pytest.ini_options]
 log_cli = true
