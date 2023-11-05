@@ -1,22 +1,36 @@
 import random
 import aiohttp
-from .logger import get_instance
+import time
+from maxwell.utils.logger import get_logger
 
-logger = get_instance(__name__)
+
+logger = get_logger(__name__)
 
 
 class Master(object):
     # ===========================================
     # apis
     # ===========================================
-    def __init__(self, endpoints):
+    def __init__(self, endpoints, options):
         self.__endpoints = endpoints
+        self.__options = options
         self.__init_endpoint_index()
+        self.__cached_frontend_endponit = None
+        self.__last_cached_at = None
 
-    async def pick_frontend(self):
+    async def pick_frontend(self, force=False):
+        if (
+            not force
+            and self.__cached_frontend_endponit is not None
+            and self.__last_cached_at + self.__options["endpoint_cache_ttl"]
+            > time.time()
+        ):
+            return self.__cached_frontend_endponit
         rep = await self.__request("$pick-frontend")
         if rep["code"] != 0:
             raise Exception(f"Failed to pick frontend: rep: {rep}")
+        self.__cached_frontend_endponit = rep["endpoint"]
+        self.__last_cached_at = time.time()
         return rep["endpoint"]
 
     # ===========================================
@@ -42,7 +56,7 @@ class Master(object):
 
     def __next_url(self, path):
         return "http://" + self.__next_endpoint() + "/" + path
-    
+
     def __next_endpoint(self):
         self.__endpoint_index += 1
         if self.__endpoint_index >= len(self.__endpoints):

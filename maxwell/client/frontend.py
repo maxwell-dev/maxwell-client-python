@@ -1,68 +1,79 @@
 import asyncio
-import traceback
 import json
+import traceback
 import maxwell.protocol.maxwell_protocol_pb2 as protocol_types
-from .logger import get_instance
-from .connection import Code
-from .connection import Event
-from .listenable import Listenable
+from maxwell.utils.listenable import Listenable
+from maxwell.utils.logger import get_logger
+from maxwell.utils.connection import (
+    MultiAltEndpointsConnection,
+    Event,
+    EventHandler,
+    ErrorCode,
+)
+
 from .subscription_mgr import SubscriptionMgr
 from .msg_queue_mgr import MsgQueueMgr
 
-logger = get_instance(__name__)
+
+logger = get_logger(__name__)
 
 
-class Frontend(Listenable):
+class Frontend(Listenable, EventHandler):
     # ===========================================
     # apis
     # ===========================================
-    def __init__(self, master, connection_mgr, options, loop):
+    def __init__(self, master, options, loop):
         super().__init__()
 
         self.__master = master
-        self.__connection_mgr = connection_mgr
         self.__options = options
         self.__loop = loop
 
-        self.__msg_queue_mgr = MsgQueueMgr(self.__options.get("queue_capacity"))
-        self.__subscribe_callbacks = {}
-        self.__events = {}  # {topic: not_full_event}
         self.__subscription_mgr = SubscriptionMgr()
-
-        self.__loop.create_task(self.__connect_to_frontend())
+        self.__subscribe_callbacks = {}
+        self.__msg_queue_mgr = MsgQueueMgr(self.__options.get("queue_capacity"))
+        self.__not_full_events = {}  # {topic0: event0, ...}
         self.__pull_tasks = {}
 
-        self.__connection = None
-        self.__connected_event = asyncio.Event()
-        self.__is_connection_open = False
+        self.__connection = MultiAltEndpointsConnection(
+            pick_endpoint=self.__pick_frontend,
+            options=self.__options,
+            event_handler=self,
+            loop=self.__loop,
+        )
+        self.__failed_to_connect = False
 
-    def close(self):
-        self.__do_disconnect_from_frontend()
+    async def close(self):
+        self.__delete_all_pull_tasks()
+        self.__subscription_mgr.clear()
+        self.__subscribe_callbacks.clear()
+        self.__msg_queue_mgr.clear()
+        self.__not_full_events.clear()
+        await self.__connection.close()
 
     def subscribe(self, topic, offset, callback):
         if self.__subscription_mgr.has_subscribed(topic):
-            raise Exception(f"Already subscribed: topic: {topic}")
+            logger.info(f"Already subscribed: topic: {topic}")
+            return
 
+        self.__subscription_mgr.add_subscription(topic, offset)
         self.__subscribe_callbacks[topic] = callback
         event = asyncio.Event()
         event.set()
-        self.__events[topic] = event
-        self.__subscription_mgr.add_subscription(topic, offset)
+        self.__msg_queue_mgr.get_or_set(topic)
+        self.__not_full_events[topic] = event
         self.__new_pull_task(topic)
 
     def unsubscribe(self, topic):
         self.__delete_pull_task(topic)
         self.__subscription_mgr.delete_subscription(topic)
-        self.__events.pop(topic)
-        self.__subscribe_callbacks.pop(topic)
+        self.__subscribe_callbacks.pop(topic, None)
+        self.__not_full_events.pop(topic, None)
         self.__msg_queue_mgr.delete(topic)
 
     def receive(self, topic, limit):
-        if not self.__subscription_mgr.has_subscribed(topic):
-            raise Exception(f"Not subscribed yet: topic: {topic}")
-
-        event = self.__events.get(topic)
-        msg_queue = self.__msg_queue_mgr.get(topic)
+        event = self.__not_full_events.get(topic)
+        msg_queue = self.__msg_queue_mgr.get_or_set(topic)
         msgs = msg_queue.get(limit)
         if len(msgs) > 0:
             msg_queue.delete_to(msgs[-1].offset)
@@ -77,70 +88,33 @@ class Frontend(Listenable):
         return json.loads(result.payload)
 
     # ===========================================
-    # connection management
+    # EventHandler implementation
     # ===========================================
-    async def __connect_to_frontend(self):
-        self.__do_connect_to_frontend(await self.__ensure_frontend_picked())
+    def on_connecting(self, connection: MultiAltEndpointsConnection, _):
+        self.notify(Event.ON_CONNECTING, connection)
 
-    def __do_connect_to_frontend(self, endpoint):
-        self.__connection = self.__connection_mgr.fetch(endpoint)
-        self.__connection.add_listener(
-            Event.ON_CONNECTED, self.__on_connect_to_frontend_done
-        )
-        self.__connection.add_listener(
-            Event.ON_DISCONNECTED, self.__on_disconnect_from_frontend_done
-        )
-        self.__connection.add_listener(
-            (Event.ON_ERROR, Code.FAILED_TO_CONNECT),
-            self.__on_connect_to_frontend_failed,
-        )
-
-    def __do_disconnect_from_frontend(self):
-        self.__connection.delete_listener(
-            Event.ON_CONNECTED, self.__on_connect_to_frontend_done
-        )
-        self.__connection.delete_listener(
-            (Event.ON_ERROR, Code.FAILED_TO_CONNECT),
-            self.__on_connect_to_frontend_failed,
-        )
-        self.__connection.delete_listener(
-            Event.ON_DISCONNECTED, self.__on_disconnect_from_frontend_done
-        )
-        self.__connection_mgr.release(self.__connection)
-        self.__connection = None
-
-    def __on_connect_to_frontend_done(self):
-        self.__is_connection_open = True
-        self.__connected_event.set()
+    def on_connected(self, connection: MultiAltEndpointsConnection, _):
+        self.__failed_to_connect = False
         self.__renew_all_pull_tasks()
-        self.notify(Event.ON_CONNECTED)
+        self.notify(Event.ON_CONNECTED, connection)
 
-    def __on_connect_to_frontend_failed(self, _code):
-        self.__is_connection_open = False
-        self.__connected_event.clear()
-        self.__do_disconnect_from_frontend()
-        self.__loop.call_later(1, self.__reconnect_to_frontend)
+    def on_disconnecting(self, connection: MultiAltEndpointsConnection, _):
+        self.notify(Event.ON_DISCONNECTING, connection)
 
-    def __reconnect_to_frontend(self):
-        self.__loop.create_task(self.__connect_to_frontend())
-
-    def __on_disconnect_from_frontend_done(self):
-        self.__is_connection_open = False
-        self.__connected_event.clear()
+    def on_disconnected(self, connection: MultiAltEndpointsConnection, _):
         self.__delete_all_pull_tasks()
-        self.notify(Event.ON_DISCONNECTED)
+        self.notify(Event.ON_DISCONNECTED, connection)
 
-    async def __ensure_frontend_picked(self):
-        while True:
-            try:
-                return await self.__master.pick_frontend()
-            except Exception:
-                logger.error("Failed to pick frontend: %s", traceback.format_exc())
-                await asyncio.sleep(1)
-                continue
+    def on_error(self, error_code, connection: MultiAltEndpointsConnection, _):
+        if error_code == ErrorCode.FAILED_TO_CONNECT:
+            self.__failed_to_connect = True
+        self.notify(Event.ON_ERROR, error_code, self, connection)
+
+    async def __pick_frontend(self):
+        return await self.__master.pick_frontend(self.__failed_to_connect)
 
     # ===========================================
-    # core functions
+    # task functions
     # ===========================================
     def __renew_all_pull_tasks(self):
         self.__subscription_mgr.to_pendings()
@@ -173,11 +147,19 @@ class Frontend(Listenable):
                 await asyncio.sleep(1)
 
     async def __pull(self, topic):
-        msg_queue = self.__msg_queue_mgr.get(topic)
-        event = self.__events.get(topic)
-        callback = self.__subscribe_callbacks.get(topic)
+        if not self.__subscription_mgr.has_subscribed(topic):
+            logger.warning(f"Already unsubscribed: topic: {topic}")
+            return
+
         offset = self.__subscription_mgr.get_doing(topic)
+        callback = self.__subscribe_callbacks.get(topic)
+        msg_queue = self.__msg_queue_mgr.get_or_set(topic)
+        event = self.__not_full_events.get(topic)
+
         pull_rep = await self.__request(self.__build_pull_req(topic, offset))
+        if pull_rep.msgs == None or len(pull_rep.msgs) == 0:
+            logger.info("No msgs pulled: topic: %s, offset: %s", topic, offset)
+            return
         msg_queue.put(pull_rep.msgs)
         self.__subscription_mgr.to_doing(topic, msg_queue.last_offset() + 1)
 
@@ -194,15 +176,11 @@ class Frontend(Listenable):
                 msg_queue.last_offset(),
             )
             event.clear()
-            await event.wait()
+            await event.wait(self.__options["wait_consuming_timeout"])
 
     async def __request(self, msg):
-        if self.__is_connection_open:
-            return await self.__connection.request(msg)
-        else:         
-            logger.debug("Waiting the connection to be OPEN...")
-            await self.__connected_event.wait()
-            return await self.__connection.request(msg)
+        await self.__connection.wait_open()
+        return await self.__connection.request(msg)
 
     # ===========================================
     # req builders

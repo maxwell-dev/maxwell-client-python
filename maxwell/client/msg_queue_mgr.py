@@ -6,12 +6,7 @@ class MsgQueueMgr(object):
         self.__queue_capacity = queue_capacity
         self.__dict = dict()
 
-    def clear(self):
-        for queue in self.__dict.values():
-            queue.clear()
-        self.__dict.clear()
-
-    def get(self, topic):
+    def get_or_set(self, topic):
         queue = self.__dict.get(topic)
         if not queue:
             queue = MsgQueue(self.__queue_capacity)
@@ -24,3 +19,8 @@ class MsgQueueMgr(object):
             return
         queue.clear()
         self.__dict.pop(topic, None)
+
+    def clear(self):
+        for queue in self.__dict.values():
+            queue.clear()
+        self.__dict.clear()

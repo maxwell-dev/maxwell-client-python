@@ -21,6 +21,10 @@ frozenlist==1.4.0
 idna==3.4
     # via yarl
 maxwell-protocol==0.7.0
+    # via
+    #   maxwell-client (setup.py)
+    #   maxwell-utils
+maxwell-utils==0.6.2
     # via maxwell-client (setup.py)
 multidict==6.0.4
     # via
@@ -29,6 +33,8 @@ multidict==6.0.4
 protobuf==4.24.1
     # via maxwell-protocol
 websockets==11.0.3
-    # via maxwell-client (setup.py)
+    # via
+    #   maxwell-client (setup.py)
+    #   maxwell-utils
 yarl==1.9.2
     # via aiohttp
