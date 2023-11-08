@@ -51,10 +51,10 @@ class Client(object):
             options["round_timeout"] = 5
         if options.get("wait_consuming_timeout") == None:
             options["wait_consuming_timeout"] = 10
+        if options.get("pull_limit") == None:
+            options["pull_limit"] = 128
         if options.get("queue_capacity") == None:
             options["queue_capacity"] = 512
-        if options.get("get_limit") == None:
-            options["get_limit"] = 128
         if options.get("endpoint_cache_ttl") == None:
             options["endpoint_cache_ttl"] = 10
         return options

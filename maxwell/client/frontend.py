@@ -221,7 +221,7 @@ class Frontend(Listenable, EventHandler):
         pull_req = protocol_types.pull_req_t()
         pull_req.topic = topic
         pull_req.offset = offset
-        pull_req.limit = self.__options.get("get_limit")
+        pull_req.limit = self.__options.get("pull_limit")
         return pull_req
 
     def __build_req_req(self, path, payload=None, header={}):
