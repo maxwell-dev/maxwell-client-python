@@ -29,6 +29,8 @@ class Frontend(Listenable, EventHandler):
         self.__options = options
         self.__loop = loop
 
+        self.__should_run = True
+
         self.__subscription_mgr = SubscriptionMgr()
         self.__subscribe_callbacks = {}
         self.__msg_queue_mgr = MsgQueueMgr(self.__options.get("queue_capacity"))
@@ -44,6 +46,7 @@ class Frontend(Listenable, EventHandler):
         self.__failed_to_connect = False
 
     async def close(self):
+        self.__should_run = False
         self.__delete_all_pull_tasks()
         self.__subscription_mgr.clear()
         self.__subscribe_callbacks.clear()
@@ -83,8 +86,19 @@ class Frontend(Listenable, EventHandler):
             event.set()  # trigger not_full_event
             return []
 
-    async def request(self, path, payload=None, header=None):
-        result = await self.__request(self.__build_req_req(path, payload, header))
+    async def request(
+        self,
+        path,
+        payload=None,
+        header={},
+        wait_open_timeout=None,
+        round_timeout=None,
+    ):
+        result = await self.__request(
+            self.__build_req_req(path, payload, header),
+            wait_open_timeout,
+            round_timeout,
+        )
         return json.loads(result.payload)
 
     # ===========================================
@@ -137,13 +151,13 @@ class Frontend(Listenable, EventHandler):
         self.__pull_tasks.pop(topic, None)
 
     async def __repeat_pull(self, topic):
-        while True:
+        while self.__should_run:
             try:
                 await self.__pull(topic)
             except asyncio.TimeoutError:
                 logger.debug("Timeout triggered, pull again...")
-            except Exception:
-                logger.warning("Error occured: %s", traceback.format_exc())
+            except Exception as e:
+                logger.warning("Error occured: %s", e)
                 await asyncio.sleep(1)
 
     async def __pull(self, topic):
@@ -178,9 +192,22 @@ class Frontend(Listenable, EventHandler):
             event.clear()
             await event.wait(self.__options["wait_consuming_timeout"])
 
-    async def __request(self, msg):
-        await self.__connection.wait_open()
-        return await self.__connection.request(msg)
+    async def __request(
+        self,
+        msg,
+        wait_open_timeout=None,
+        round_timeout=None,
+    ):
+        if wait_open_timeout == None:
+            wait_open_timeout = self.__options["wait_open_timeout"]
+        if round_timeout == None:
+            round_timeout = self.__options["round_timeout"]
+
+        async with asyncio.timeout(wait_open_timeout) as cm:
+            await self.__connection.wait_open()
+            next_delay = self.__loop.time() + round_timeout
+            cm.reschedule(next_delay)
+            return await self.__connection.request(msg)
 
     # ===========================================
     # req builders

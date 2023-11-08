@@ -8,14 +8,18 @@ logger = get_logger(__name__)
 
 def build_options(options=None):
     options = options if options else {}
+    if options.get("wait_open_timeout") == None:
+        options["wait_open_timeout"] = 3
+    if options.get("round_timeout") == None:
+        options["round_timeout"] = 5
+    if options.get("wait_consuming_timeout") == None:
+        options["wait_consuming_timeout"] = 10
     if options.get("queue_capacity") == None:
         options["queue_capacity"] = 512
     if options.get("get_limit") == None:
         options["get_limit"] = 128
     if options.get("endpoint_cache_ttl") == None:
         options["endpoint_cache_ttl"] = 10
-    if options.get("wait_consuming_timeout") == None:
-        options["wait_consuming_timeout"] = 10
     return options
 
 
@@ -27,7 +31,7 @@ class TestRequest:
             "/hello",
             {},
         )
-        assert result == "world"
+        assert result == "python"
         await client.close()
 
     @pytest.mark.asyncio
