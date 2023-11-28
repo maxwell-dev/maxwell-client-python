@@ -11,7 +11,7 @@ classifiers = [
 ]
 dependencies = [
   "websockets >= 11.0.3",
-  "aiohttp == 3.8.5",
+  "aiohttp == 3.9.0",
   "maxwell-protocol == 0.7.0",
   "maxwell-utils == 0.6.2",
 ]
