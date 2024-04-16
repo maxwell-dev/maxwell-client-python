@@ -12,7 +12,8 @@ classifiers = [
 dependencies = [
   "websockets >= 12.0",
   "aiohttp >= 3.9.3",
-  "maxwell-utils == 0.6.5",
+  "maxwell-protocol >= 0.8.0",
+  "maxwell-utils >= 0.7.0",
 ]
 description = "The maxwell client implementation for python."
 license = {file = "LICENSE"}

@@ -16,9 +16,11 @@ frozenlist==1.4.1
     #   aiosignal
 idna==3.6
     # via yarl
-maxwell-protocol==0.7.3
-    # via maxwell-utils
-maxwell-utils==0.6.5
+maxwell-protocol==0.8.0
+    # via
+    #   maxwell-client (setup.py)
+    #   maxwell-utils
+maxwell-utils==0.7.0
     # via maxwell-client (setup.py)
 multidict==6.0.5
     # via
